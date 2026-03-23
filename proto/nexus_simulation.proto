@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package nexus.simulation;
+
+// ============================================================
+//  NEXUS-Flow gRPC Service Definition
+//  Rust Backend (Client) <-> Python AI Engine (Server)
+// ============================================================
+
+// ----------------- Core Messages -----------------
+
+// 노드 파라미터 (확률적 특성)
+message NodeParameters {
+  double cycle_time = 1;          // 공정 사이클 타임 (초)
+  double failure_rate = 2;        // 고장 확률 (0.0 ~ 1.0)
+  int32  processing_capacity = 3; // 동시 처리 용량
+}
+
+// 노드 현재 상태
+message NodeState {
+  string status = 1;              // "idle" | "processing" | "blocked" | "failed"
+  double current_utilization = 2; // 현재 가동률 (0.0 ~ 1.0)
+}
+
+// 공정 노드
+message Node {
+  string         id         = 1;
+  string         type       = 2;  // "source" | "assembler" | "inspector" | "buffer" | "sink"
+  NodeParameters parameters = 3;
+  NodeState      state      = 4;
+  string         label      = 5;
+}
+
+// 공정 에지 (노드 간 연결)
+message Edge {
+  string id      = 1;
+  string source  = 2;
+  string target  = 3;
+  string type    = 4;  // "material_flow" | "data_flow"
+  double latency = 5;  // 전달 지연 시간 (초)
+}
+
+// 시뮬레이션 설정
+message SimulationConfig {
+  int32  duration_seconds = 1;  // 시뮬레이션 총 시간 (초)
+  double time_step        = 2;  // 시간 단위 (초)
+  int32  random_seed      = 3;  // 재현성을 위한 랜덤 시드
+}
+
+// 전체 토폴로지 (Rust → Python 전송 단위)
+message Topology {
+  repeated Node   nodes  = 1;
+  repeated Edge   edges  = 2;
+  SimulationConfig config = 3;
+}
+
+// ----------------- What-If Scenario -----------------
+
+// 단일 파라미터 변경 사항
+message ParameterChange {
+  string node_id    = 1;  // 변경 대상 노드 ID
+  string param_name = 2;  // 변경할 파라미터명 (예: "cycle_time")
+  double new_value  = 3;  // 새로운 값
+}
+
+// What-If 시뮬레이션 요청
+message SimulationRequest {
+  string                  request_id       = 1;  // 요청 고유 ID (추적용)
+  Topology                topology         = 2;  // 현재 토폴로지 스냅샷
+  repeated ParameterChange parameter_changes = 3; // 변경할 파라미터 목록
+}
+
+// ----------------- Simulation Results -----------------
+
+// 개별 노드의 시뮬레이션 결과
+message NodeResult {
+  string node_id              = 1;
+  double predicted_utilization = 2;  // 예측 가동률
+  double predicted_throughput  = 3;  // 예측 처리량 (개/시간)
+  string predicted_status      = 4;  // 예측 상태
+  double bottleneck_score      = 5;  // 병목 점수 (0.0 ~ 1.0, 높을수록 병목)
+}
+
+// 전이 영향 체인 (Propagation Impact Chain)
+message ImpactChainLink {
+  string source_node_id = 1;  // 영향 발생 노드
+  string target_node_id = 2;  // 영향 수신 노드
+  double impact_score   = 3;  // 전파된 영향도 (0.0 ~ 1.0)
+  string description    = 4;  // 영향 설명 (예: "cycle_time 증가로 인해 대기열 증가")
+}
+
+// What-If 시뮬레이션 응답
+message SimulationResponse {
+  string                    request_id    = 1;  // 요청 ID (매칭용)
+  bool                      success       = 2;  // 성공 여부
+  string                    error_message = 3;  // 실패 시 오류 메시지
+  repeated NodeResult       node_results  = 4;  // 노드별 예측 결과
+  repeated ImpactChainLink  impact_chain  = 5;  // 전이 영향 체인
+  double                    overall_throughput = 6;  // 전체 라인 예측 처리량
+  double                    overall_efficiency = 7;  // 전체 라인 예측 효율 (%)
+}
+
+// ----------------- gRPC Service -----------------
+
+service NexusSimulationService {
+  // 단일 What-If 시뮬레이션 실행 (Unary RPC)
+  rpc RunSimulation (SimulationRequest) returns (SimulationResponse);
+
+  // 스트리밍 시뮬레이션: 실시간 파라미터 변경에 따른 연속 결과 수신 (Server Streaming RPC)
+  rpc StreamSimulation (SimulationRequest) returns (stream SimulationResponse);
+
+  // 헬스 체크
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// 헬스 체크
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status  = 1;  // "SERVING" | "NOT_SERVING"
+  string version = 2;  // AI 엔진 버전
+}
