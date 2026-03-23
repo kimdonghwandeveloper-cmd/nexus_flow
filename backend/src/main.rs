@@ -1,9 +1,13 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use tracing::{info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 
 mod config;
+mod messages;
 mod models;
+mod ws;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,8 +28,18 @@ async fn main() -> Result<()> {
         config.websocket_port
     );
 
-    // 4. 서브시스템 초기화 (향후 확장 지점)
-    // TODO [Step 2-2]: WebSocket 서버 시작
+    // 4. 공유 상태 초기화
+    let state = Arc::new(ws::AppState::new());
+
+    // 5. WebSocket 서버 시작 (별도 태스크)
+    let ws_state = Arc::clone(&state);
+    let ws_port = config.websocket_port;
+    let ws_handle = tokio::spawn(async move {
+        if let Err(e) = ws::start_ws_server(ws_port, ws_state).await {
+            tracing::error!("WebSocket server error: {}", e);
+        }
+    });
+
     // TODO [Step 2-3]: 그래프 엔진 초기화
     // TODO [Step 2-4]: gRPC 클라이언트 연결
     // TODO [Step 2-5]: Supabase 클라이언트 초기화
@@ -35,6 +49,9 @@ async fn main() -> Result<()> {
     // Graceful shutdown 대기
     tokio::signal::ctrl_c().await?;
     warn!("Shutdown signal received. Cleaning up...");
+
+    // WebSocket 서버 태스크 중단
+    ws_handle.abort();
 
     Ok(())
 }

@@ -20,3 +20,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Error Handling
 anyhow = "1"
+
+# WebSocket
+tokio-tungstenite = "0.26"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+# Unique IDs
+uuid = { version = "1", features = ["v4"] }
