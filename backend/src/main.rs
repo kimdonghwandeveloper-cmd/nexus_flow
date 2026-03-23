@@ -5,6 +5,7 @@ use tracing::{info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 
 mod config;
+mod graph;
 mod messages;
 mod models;
 mod ws;
