@@ -69,7 +69,7 @@ impl SimulationClient {
                 .iter()
                 .map(|n| ProtoNode {
                     id: n.id.clone(),
-                    node_type: format!("{:?}", n.node_type).to_lowercase(),
+                    r#type: format!("{:?}", n.node_type).to_lowercase(),
                     label: n.data.label.clone(),
                     parameters: Some(ProtoNodeParameters {
                         cycle_time: n.data.parameters.cycle_time,
