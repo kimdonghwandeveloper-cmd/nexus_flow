@@ -10,6 +10,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info, warn};
 
 use crate::grpc_client::SimulationClient;
+use crate::supabase::SupabaseClient;
 use crate::messages::{
     ClientMessage, ErrorPayload, ParameterUpdateAck, ServerMessage, SimulationResultPayload,
     SyncAck,
@@ -19,14 +20,18 @@ use crate::models::Topology;
 /// 공유 애플리케이션 상태 (스레드 안전)
 pub struct AppState {
     pub topology: RwLock<Option<Topology>>,
+    pub project_id: RwLock<Option<String>>,
     pub grpc_client: SimulationClient,
+    pub supabase_client: SupabaseClient,
 }
 
 impl AppState {
-    pub fn new(grpc_client: SimulationClient) -> Self {
+    pub fn new(grpc_client: SimulationClient, supabase_client: SupabaseClient) -> Self {
         Self {
             topology: RwLock::new(None),
+            project_id: RwLock::new(None),
             grpc_client,
+            supabase_client,
         }
     }
 }
@@ -113,22 +118,36 @@ async fn process_message(text: &str, state: &AppState) -> ServerMessage {
 
     // 2. 메시지 타입별 처리
     match client_msg {
-        ClientMessage::SyncTopology(topology) => {
+        ClientMessage::SyncTopology { project_id, topology } => {
             let node_count = topology.nodes.len();
             let edge_count = topology.edges.len();
             info!(
-                "Topology synced: {} nodes, {} edges",
-                node_count, edge_count
+                "Topology synced for project '{}': {} nodes, {} edges",
+                project_id, node_count, edge_count
             );
 
             // 상태에 토폴로지 저장
-            let mut topo_state = state.topology.write().await;
-            *topo_state = Some(topology);
+            {
+                let mut topo_state = state.topology.write().await;
+                *topo_state = Some(topology.clone());
+                let mut proj_state = state.project_id.write().await;
+                *proj_state = Some(project_id.clone());
+            }
+
+            // Supabase에 비동기로 저장 (실패해도 클라이언트 응답은 보냄)
+            let supabase = state.supabase_client.clone();
+            let p_id = project_id.clone();
+            let topo_val = serde_json::to_value(&topology).unwrap_or(serde_json::Value::Null);
+            tokio::spawn(async move {
+                if let Err(e) = supabase.save_topology(&p_id, 1, topo_val).await {
+                    error!("Failed to persist topology to Supabase: {}", e);
+                }
+            });
 
             ServerMessage::TopologySynced(SyncAck {
                 node_count,
                 edge_count,
-                message: "Topology synchronized successfully".to_string(),
+                message: "Topology synchronized and persisting".to_string(),
             })
         }
 
@@ -192,14 +211,38 @@ async fn process_message(text: &str, state: &AppState) -> ServerMessage {
                     )
                     .await
                 {
-                    Ok(resp) => ServerMessage::SimulationResult(SimulationResultPayload {
-                        request_id: resp.request_id,
-                        success: resp.success,
-                        overall_throughput: Some(resp.overall_throughput),
-                        overall_efficiency: Some(resp.overall_efficiency),
-                        node_results: vec![], // TODO: 구체적 매핑
-                        impact_chain: vec![], // TODO: 구체적 매핑
-                    }),
+                    Ok(resp) => {
+                        // 결과를 Supabase에 비동기로 저장
+                        let supabase = state.supabase_client.clone();
+                        let r_id = resp.request_id.clone();
+                        
+                        // SimulationResponse가 Serialize를 구현하지 않으므로 수동 매핑
+                        let res_val = serde_json::json!({
+                            "request_id": resp.request_id,
+                            "success": resp.success,
+                            "overall_throughput": resp.overall_throughput,
+                            "overall_efficiency": resp.overall_efficiency,
+                            "node_results": [], // TODO
+                            "impact_chain": []  // TODO
+                        });
+                        
+                        tokio::spawn(async move {
+                            // TODO: topology_id를 AppState나 메시지에 포함해야 함
+                            // 현재는 dummy topology_id로 호출 가능성 대비하여 result 구조만 전달
+                            if let Err(e) = supabase.save_simulation_result("current_active", &r_id, res_val).await {
+                                error!("Failed to persist simulation result: {}", e);
+                            }
+                        });
+                        
+                        ServerMessage::SimulationResult(SimulationResultPayload {
+                            request_id: resp.request_id,
+                            success: resp.success,
+                            overall_throughput: Some(resp.overall_throughput),
+                            overall_efficiency: Some(resp.overall_efficiency),
+                            node_results: vec![], 
+                            impact_chain: vec![], 
+                        })
+                    }
                     Err(e) => ServerMessage::Error(ErrorPayload {
                         code: "GRPC_ERROR".to_string(),
                         message: format!("AI Engine communication failed: {}", e),

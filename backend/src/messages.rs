@@ -13,7 +13,10 @@ use crate::models::Topology;
 #[serde(rename_all = "snake_case")]
 pub enum ClientMessage {
     /// 토폴로지 전체 동기화 (초기 로드 또는 전체 업데이트)
-    SyncTopology(Topology),
+    SyncTopology {
+        project_id: String,
+        topology: Topology,
+    },
 
     /// 단일 노드 파라미터 변경 (Debounced)
     UpdateParameter(ParameterUpdate),

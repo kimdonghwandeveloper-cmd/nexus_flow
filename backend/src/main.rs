@@ -9,7 +9,8 @@ mod graph;
 mod grpc_client;
 mod messages;
 mod models;
-mod ws;
+pub mod supabase;
+pub mod ws;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,8 +37,11 @@ async fn main() -> Result<()> {
         config.grpc_port
     ).await?;
 
-    // 5. 공유 상태 초기화
-    let state = Arc::new(ws::AppState::new(grpc_client));
+    // 5. Supabase 클라이언트 초기화
+    let supabase_client = supabase::SupabaseClient::new(&config);
+
+    // 6. 공유 상태 초기화
+    let state = Arc::new(ws::AppState::new(grpc_client, supabase_client));
 
     // 5. WebSocket 서버 시작 (별도 태스크)
     let ws_state = Arc::clone(&state);
