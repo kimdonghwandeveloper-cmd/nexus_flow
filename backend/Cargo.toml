@@ -33,6 +33,11 @@ tonic = "0.12"
 prost = "0.13"
 tokio-stream = "0.1"
 
+# Supabase (PostgREST)
+postgrest = "1.6"
+reqwest = { version = "0.12", features = ["json"] }
+
+
 [build-dependencies]
 tonic-build = "0.12"
 
