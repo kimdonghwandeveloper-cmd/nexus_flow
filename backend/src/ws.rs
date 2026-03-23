@@ -9,20 +9,24 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info, warn};
 
+use crate::grpc_client::SimulationClient;
 use crate::messages::{
-    ClientMessage, ErrorPayload, ParameterUpdateAck, ServerMessage, SyncAck,
+    ClientMessage, ErrorPayload, ParameterUpdateAck, ServerMessage, SimulationResultPayload,
+    SyncAck,
 };
 use crate::models::Topology;
 
 /// 공유 애플리케이션 상태 (스레드 안전)
 pub struct AppState {
     pub topology: RwLock<Option<Topology>>,
+    pub grpc_client: SimulationClient,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(grpc_client: SimulationClient) -> Self {
         Self {
             topology: RwLock::new(None),
+            grpc_client,
         }
     }
 }
@@ -176,16 +180,37 @@ async fn process_message(text: &str, state: &AppState) -> ServerMessage {
         ClientMessage::RunSimulation(request) => {
             info!("Simulation requested: id={}", request.request_id);
 
-            // TODO [Step 2-4]: gRPC로 Python AI 엔진에 전달
-            // 현재는 더미 응답 반환
-            ServerMessage::SimulationResult(crate::messages::SimulationResultPayload {
-                request_id: request.request_id,
-                success: true,
-                overall_throughput: Some(85.0),
-                overall_efficiency: Some(78.5),
-                node_results: vec![],
-                impact_chain: vec![],
-            })
+            // gRPC로 Python AI 엔진에 전달
+            let topo_state = state.topology.read().await;
+            if let Some(ref topology) = *topo_state {
+                match state
+                    .grpc_client
+                    .run_simulation(
+                        request.request_id.clone(),
+                        topology,
+                        request.parameter_changes,
+                    )
+                    .await
+                {
+                    Ok(resp) => ServerMessage::SimulationResult(SimulationResultPayload {
+                        request_id: resp.request_id,
+                        success: resp.success,
+                        overall_throughput: Some(resp.overall_throughput),
+                        overall_efficiency: Some(resp.overall_efficiency),
+                        node_results: vec![], // TODO: 구체적 매핑
+                        impact_chain: vec![], // TODO: 구체적 매핑
+                    }),
+                    Err(e) => ServerMessage::Error(ErrorPayload {
+                        code: "GRPC_ERROR".to_string(),
+                        message: format!("AI Engine communication failed: {}", e),
+                    }),
+                }
+            } else {
+                ServerMessage::Error(ErrorPayload {
+                    code: "NO_TOPOLOGY".to_string(),
+                    message: "No topology loaded. Send SyncTopology first.".to_string(),
+                })
+            }
         }
 
         ClientMessage::Ping => ServerMessage::Pong,

@@ -6,6 +6,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 
 mod config;
 mod graph;
+mod grpc_client;
 mod messages;
 mod models;
 mod ws;
@@ -29,8 +30,14 @@ async fn main() -> Result<()> {
         config.websocket_port
     );
 
-    // 4. 공유 상태 초기화
-    let state = Arc::new(ws::AppState::new());
+    // 4. gRPC 클라이언트 초기화 (Python AI 엔진 서버 연결)
+    let grpc_client = grpc_client::SimulationClient::connect(
+        &config.grpc_host,
+        config.grpc_port
+    ).await?;
+
+    // 5. 공유 상태 초기화
+    let state = Arc::new(ws::AppState::new(grpc_client));
 
     // 5. WebSocket 서버 시작 (별도 태스크)
     let ws_state = Arc::clone(&state);
