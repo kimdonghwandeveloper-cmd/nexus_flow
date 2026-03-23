@@ -27,3 +27,13 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 
 # Unique IDs
 uuid = { version = "1", features = ["v4"] }
+
+# gRPC
+tonic = "0.12"
+prost = "0.13"
+tokio-stream = "0.1"
+
+[build-dependencies]
+tonic-build = "0.12"
+
+
