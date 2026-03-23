@@ -1,0 +1,90 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "Smartphone Assembly Line Alpha",
+    "description": "Basic assembly and inspection process for what-if simulation.",
+    "created_at": "2026-03-23T08:55:00Z"
+  },
+  "nodes": [
+    {
+      "id": "node_src_01",
+      "type": "source",
+      "position": { "x": 0, "y": 100 },
+      "data": {
+        "label": "Part Feeder",
+        "parameters": {
+          "cycle_time": 2.0,
+          "failure_rate": 0.0,
+          "processing_capacity": 10
+        }
+      }
+    },
+    {
+      "id": "node_asm_01",
+      "type": "assembler",
+      "position": { "x": 250, "y": 100 },
+      "data": {
+        "label": "Main Assembler",
+        "parameters": {
+          "cycle_time": 15.0,
+          "failure_rate": 0.05,
+          "processing_capacity": 1
+        }
+      }
+    },
+    {
+      "id": "node_ins_01",
+      "type": "inspector",
+      "position": { "x": 500, "y": 100 },
+      "data": {
+        "label": "Visual Inspector",
+        "parameters": {
+          "cycle_time": 5.0,
+          "failure_rate": 0.01,
+          "processing_capacity": 2
+        }
+      }
+    },
+    {
+      "id": "node_snk_01",
+      "type": "sink",
+      "position": { "x": 750, "y": 100 },
+      "data": {
+        "label": "Product Out",
+        "parameters": {
+          "cycle_time": 0.0,
+          "failure_rate": 0.0,
+          "processing_capacity": 100
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_01",
+      "source": "node_src_01",
+      "target": "node_asm_01",
+      "type": "material_flow",
+      "data": { "latency": 1.0 }
+    },
+    {
+      "id": "edge_02",
+      "source": "node_asm_01",
+      "target": "node_ins_01",
+      "type": "material_flow",
+      "data": { "latency": 1.5 }
+    },
+    {
+      "id": "edge_03",
+      "source": "node_ins_01",
+      "target": "node_snk_01",
+      "type": "material_flow",
+      "data": { "latency": 1.0 }
+    }
+  ],
+  "simulation_config": {
+    "duration_seconds": 3600,
+    "time_step": 1.0,
+    "random_seed": 777
+  }
+}

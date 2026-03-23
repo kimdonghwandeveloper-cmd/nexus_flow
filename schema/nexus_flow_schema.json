@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NEXUS-Flow SSOT Schema",
+  "type": "object",
+  "properties": {
+    "version": { "type": "string" },
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "type": { 
+            "enum": ["source", "assembler", "inspector", "buffer", "sink"] 
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            },
+            "required": ["x", "y"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "cycle_time": { "type": "number", "minimum": 0 },
+                  "failure_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "processing_capacity": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "state": {
+                "type": "object",
+                "properties": {
+                  "status": { "enum": ["idle", "processing", "blocked", "failed"] },
+                  "current_utilization": { "type": "number" }
+                }
+              }
+            },
+            "required": ["label", "parameters"]
+          }
+        },
+        "required": ["id", "type", "position", "data"]
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "type": { "enum": ["material_flow", "data_flow"] },
+          "data": {
+            "type": "object",
+            "properties": {
+              "latency": { "type": "number", "default": 0 },
+              "bandwidth": { "type": "number" }
+            }
+          }
+        },
+        "required": ["id", "source", "target", "type"]
+      }
+    },
+    "simulation_config": {
+      "type": "object",
+      "properties": {
+        "duration_seconds": { "type": "integer", "minimum": 1 },
+        "time_step": { "type": "number", "default": 1.0 },
+        "random_seed": { "type": "integer" }
+      }
+    }
+  },
+  "required": ["version", "project", "nodes", "edges"]
+}

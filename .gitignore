@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+# Environments
+.env*
+*.env
+
+# Rust (Cargo)
+target/
+**/*.rs.bk
+
+# Node.js (React)
+node_modules/
+dist/
+build/
+.eslintcache
+
+# Logs & Debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
