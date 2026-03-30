@@ -31,11 +31,25 @@ async fn main() -> Result<()> {
         config.websocket_port
     );
 
-    // 4. gRPC 클라이언트 초기화 (Python AI 엔진 서버 연결)
-    let grpc_client = grpc_client::SimulationClient::connect(
-        &config.grpc_host,
-        config.grpc_port
-    ).await?;
+    // 4. gRPC 클라이언트 초기화 (Python AI 엔진 서버 연결) [재시도 로직 포함]
+    let mut grpc_client = None;
+    let mut retry_count = 0;
+    while retry_count < 30 {
+        match grpc_client::SimulationClient::connect(&config.grpc_host, config.grpc_port).await {
+            Ok(client) => {
+                info!("Connected to gRPC AI Engine at {}:{}", config.grpc_host, config.grpc_port);
+                grpc_client = Some(client);
+                break;
+            }
+            Err(e) => {
+                warn!("Failed to connect to gRPC AI Engine: {}. Retrying in 5 seconds...", e);
+                retry_count += 1;
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        }
+    }
+    
+    let grpc_client = grpc_client.expect("Could not connect to gRPC AI Engine after maximum retries");
 
     // 5. Supabase 클라이언트 초기화
     let supabase_client = supabase::SupabaseClient::new(&config);

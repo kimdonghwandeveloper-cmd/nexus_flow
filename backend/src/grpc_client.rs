@@ -13,7 +13,7 @@ pub use simulation::{
 use tonic::transport::Channel;
 use tracing::info;
 
-use crate::models::{self, Topology};
+use crate::models::Topology;
 
 /// Python AI 엔진과 통신하는 gRPC 클라이언트
 #[derive(Clone)]
